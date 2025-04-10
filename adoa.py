@@ -1,4 +1,3 @@
-from types import SimpleNamespace
 import base64
 import urllib.parse
 
@@ -31,26 +30,45 @@ class RepoClient:
             source_branch = urllib.parse.quote_plus(self.base_branch)
         else:
             source_branch = urllib.parse.quote_plus(self.working_branch)
-
-        version_descriptor = SimpleNamespace(version=source_branch, version_options=None, version_type=None)
+        version_descriptor = {
+            "version": source_branch, 
+            "version_options": None, 
+            "version_type": None
+        }
         get_item_response = self.git_client.get_item_text(self.repository.id, path=item_path, project=self.project, version_descriptor=version_descriptor)
         file_content = ""
-
         for part in get_item_response:
             file_content += part.decode("utf-8")
         return file_content
 
-    # Add a file
+    # Add an add file change to the pending changes
     def add(self, new_file_path: str, new_file_content: str):
-        self.pending_changes.append(SimpleNamespace(type="add", path=new_file_path, content=new_file_content))
+        self.pending_changes.append(
+            {
+                "type": "add", 
+                "path": new_file_path, 
+                "content": new_file_content
+            }
+        )
 
-    # Edit a file
+    # Add an edit file change to the pending changes
     def edit(self, file_path: str, changed_content: str):
-        self.pending_changes.append(SimpleNamespace(type="edit", path=file_path, content=changed_content))
+        self.pending_changes.append(
+            {
+                "type": "edit", 
+                "path": file_path, 
+                "content": changed_content
+            }
+        )
 
-    # Delete a file
+    # Add an delete file change to the pending changes
     def delete(self, file_path:str):
-        self.pending_changes.append(SimpleNamespace(type="delete", path=file_path))
+        self.pending_changes.append(
+            {
+                "type": "delete", 
+                "path": file_path
+            }
+        )
 
      # Clear pending changes
     def clear(self):
