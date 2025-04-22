@@ -39,8 +39,8 @@ class RepoClient:
             file_content += part.decode("utf-8")
         return file_content
 
-    # Add an add file change to the pending changes
-    def add(self, new_file_path: str, new_file_content: str):
+    # Add an create file change to the pending changes
+    def create(self, new_file_path: str, new_file_content: str):
         self.pending_changes.append(SimpleNamespace(type="add", path=new_file_path, content=new_file_content))
 
     # Add an edit file change to the pending changes
