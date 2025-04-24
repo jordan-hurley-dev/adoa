@@ -24,9 +24,14 @@ class RepoClient:
         else:
             self.is_first_push = False
 
-    # Get content of an item as string. 
-    # Note: content will keep its newline format, for CRLF the string will end lines with "/r/n"
+    # ********************************************************************************
+    #                               Content functions
+    # ********************************************************************************
     def get_content(self, item_path: str):
+        """
+        Get content of an item as string.\n 
+        Note: content will keep its newline format, for CRLF the string will end lines with "/r/n"
+        """
         if self.is_first_push:
             source_branch = urllib.parse.quote_plus(self.base_branch)
         else:
@@ -38,25 +43,50 @@ class RepoClient:
         for part in get_item_response:
             file_content += part.decode("utf-8")
         return file_content
+    
+    def clear(self):
+        """ Clear pending changes """
+        self.pending_changes.clear()
 
-    # Add an create file change to the pending changes
     def create(self, new_file_path: str, new_file_content: str):
+        """ Add an add file change to the pending changes """
         self.pending_changes.append(SimpleNamespace(type="add", path=new_file_path, content=new_file_content))
 
-    # Add an edit file change to the pending changes
     def edit(self, file_path: str, changed_content: str):
+        """ Add an edit file change to the pending changes """
         self.pending_changes.append(SimpleNamespace(type="edit", path=file_path, content=changed_content))
 
-    # Add an delete file change to the pending changes
     def delete(self, file_path:str):
+        """ Add an delete file change to the pending changes """
         self.pending_changes.append(SimpleNamespace(type="delete", path=file_path))
-
-     # Clear pending changes
-    def clear(self):
-        self.pending_changes.clear()
     
-    # Push changes to the working branch
-    def build_push(self):
+    # ********************************************************************************
+    #                           Push and pull functions
+    # ********************************************************************************
+    def push_to_working(self):
+        """ Push changes to the working branch """
+        try:
+            self.git_client.create_push(self._build_push(), self.repository.id, self.project)
+        except:
+            self.git_client.create_push(self._build_push(), self.repository.id, self.project)
+        self.is_first_push = False
+        self.clear()
+
+    def pull_into(self, branch_name: str):
+        """ Pull into given branch """
+        if self.pending_changes != []:
+            print("\nERROR: all pending changes must be pushed to the working branch before merging into another branch\n")
+            exit()
+
+        pull_request = {
+            "title": self.change_title, 
+            "sourceRefName": "refs/heads/" + self.working_branch, 
+            "targetRefName": "refs/heads/" + branch_name
+        }
+        self.git_client.create_pull_request(pull_request, repository_id=self.repository.id)
+
+    def _build_push(self):
+        # Build the push request body
         if self.is_first_push:
             source_branch = self.base_branch
         else:
@@ -102,22 +132,3 @@ class RepoClient:
                 }
             ]
         }
-
-    # Push changes to working branch
-    def push_to_working(self):
-        self.git_client.create_push(self.build_push(), self.repository.id, self.project)
-        self.is_first_push = False
-        self.clear()
-
-    # Pull into given branch
-    def pull_into(self, branch_name: str):
-        if self.pending_changes != []:
-            print("\nERROR: all pending changes must be pushed to the working branch before merging into another branch\n")
-            exit()
-
-        pull_request = {
-            "title": self.change_title, 
-            "sourceRefName": "refs/heads/" + self.working_branch, 
-            "targetRefName": "refs/heads/" + branch_name
-        }
-        self.git_client.create_pull_request(pull_request, repository_id=self.repository.id)
