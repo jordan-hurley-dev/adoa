@@ -1,3 +1,5 @@
+# Copyright Jordan Hurley 2025
+
 from types import SimpleNamespace
 import base64
 import urllib.parse
