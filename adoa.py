@@ -5,26 +5,26 @@ import base64
 import urllib.parse
 
 class RepoClient:
-    project: str
-    git_client: object
-    repository: object
-    base_branch: str
-    working_branch: str
-    change_title: str
-    is_first_push: bool
+    """
+    Client for interacting with Azure DevOps repository.
+
+    Args:
+        connection (object): An authenticated Azure DevOps Connection object.
+        project (str): The name of the Azure DevOps project.
+        repository_name (str): The name of the Azure DevOps repository.
+        base_branch (str): The branch to base changes on.
+        working_branch (str): The branch to push changes to.
+        change_title (str): The title for changes (used in commit messages and PR titles).
+    """
     pending_changes = []
 
-    def __init__(self, project: str, connection: object, repository_name: object, base_branch: str, working_branch: str, change_title: str):
+    def __init__(self, connection: object, project: str, repository_name: str, base_branch: str, working_branch: str, change_title: str):
         self.project        = project
         self.git_client     = connection.clients.get_git_client()
         self.repository     = self.git_client.get_repository(repository_name, self.project)
         self.base_branch    = base_branch
         self.working_branch = working_branch
         self.change_title   = change_title
-        if self.base_branch != self.working_branch:
-            self.is_first_push = True
-        else:
-            self.is_first_push = False
 
     # ********************************************************************************
     #                               Content functions
@@ -34,12 +34,7 @@ class RepoClient:
         Get content of an item as string.\n 
         Note: content will keep its newline format, for CRLF the string will end lines with "/r/n"
         """
-        if self.is_first_push:
-            source_branch = urllib.parse.quote_plus(self.base_branch)
-        else:
-            source_branch = urllib.parse.quote_plus(self.working_branch)
-
-        version_descriptor = SimpleNamespace(version=source_branch, version_options=None, version_type=None)
+        version_descriptor = SimpleNamespace(version=urllib.parse.quote_plus(self.base_branch), version_options=None, version_type=None)
         get_item_response = self.git_client.get_item_text(self.repository.id, path=item_path, project=self.project, version_descriptor=version_descriptor)
         file_content = ""
         for part in get_item_response:
@@ -65,13 +60,10 @@ class RepoClient:
     # ********************************************************************************
     #                           Push and pull functions
     # ********************************************************************************
-    def push_to_working(self):
+    def commit_to_working(self):
         """ Push changes to the working branch """
-        try:
-            self.git_client.create_push(self._build_push(), self.repository.id, self.project)
-        except:
-            self.git_client.create_push(self._build_push(), self.repository.id, self.project)
-        self.is_first_push = False
+        self.git_client.create_push(self._build_push(), self.repository.id, self.project)
+        self.base_branch = self.working_branch
         self.clear()
 
     def pull_into(self, branch_name: str):
@@ -88,13 +80,8 @@ class RepoClient:
         self.git_client.create_pull_request(pull_request, repository_id=self.repository.id)
 
     def _build_push(self):
-        # Build the push request body
-        if self.is_first_push:
-            source_branch = self.base_branch
-        else:
-            source_branch = self.working_branch
-        
-        old_branch_id = self.git_client.get_refs(self.repository.id, project=self.project, filter=f"heads/{source_branch}")[0].object_id
+        """ Build the push request body """
+        old_branch_id = self.git_client.get_refs(self.repository.id, project=self.project, filter=f"heads/{self.base_branch}")[0].object_id
         formatted_changes = []
         for change in self.pending_changes:
             if change.type == "delete":
