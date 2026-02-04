@@ -14,17 +14,19 @@ class RepoClient:
         repository_name (str): The name of the Azure DevOps repository.
         base_branch (str): The branch to base changes on.
         working_branch (str): The branch to push changes to.
-        change_title (str): The title for changes (used in commit messages and PR titles).
+        commit_title (str): The title for the commit.
+        merge_title (str, optional): The title for the merge/pull request. Defaults to commit_title.
     """
     pending_changes = []
 
-    def __init__(self, connection: object, project: str, repository_name: str, base_branch: str, working_branch: str, change_title: str):
+    def __init__(self, connection: object, project: str, repository_name: str, base_branch: str, working_branch: str, commit_title: str, merge_title: str = ""):
         self.project        = project
         self.git_client     = connection.clients.get_git_client()
         self.repository     = self.git_client.get_repository(repository_name, self.project)
         self.base_branch    = base_branch
         self.working_branch = working_branch
-        self.change_title   = change_title
+        self.commit_title   = commit_title
+        self.merge_title    = merge_title if merge_title != "" else commit_title
 
     # ********************************************************************************
     #                               Content functions
@@ -58,29 +60,39 @@ class RepoClient:
         self.pending_changes.append(SimpleNamespace(type="delete", path=file_path))
     
     # ********************************************************************************
-    #                           Push and pull functions
+    #                           Commit and merge functions
     # ********************************************************************************
     def commit_to_working(self):
-        """ Push changes to the working branch """
-        self.git_client.create_push(self._build_push(), self.repository.id, self.project)
+        """ Commit changes to the working branch """
+        self.git_client.create_push(self._build_commit(), self.repository.id, self.project)
         self.base_branch = self.working_branch
         self.clear()
 
-    def pull_into(self, branch_name: str):
-        """ Pull into given branch """
+    def merge_into(self, branch_name: str, auto_complete_guid: str = ""):
+        """ Merge into given branch """
         if self.pending_changes != []:
-            print("\nERROR: all pending changes must be pushed to the working branch before merging into another branch\n")
+            print("\nERROR: all pending changes must be committed to the working branch before merging into another branch\n")
             exit()
 
         pull_request = {
-            "title": self.change_title, 
+            "title": self.merge_title,
             "sourceRefName": "refs/heads/" + self.working_branch, 
             "targetRefName": "refs/heads/" + branch_name
         }
-        self.git_client.create_pull_request(pull_request, repository_id=self.repository.id)
+        response = self.git_client.create_pull_request(pull_request, repository_id=self.repository.id)
+        if auto_complete_guid != "":
+            self.auto_complete_merge(response.pull_request_id, auto_complete_guid)
 
-    def _build_push(self):
-        """ Build the push request body """
+    def auto_complete_merge(self, pull_request_id: int, auto_complete_guid: str):
+        """ Auto complete a pull request """
+        self.git_client.update_pull_request({
+            "autoCompleteSetBy": {
+                "id": auto_complete_guid
+            }
+        }, repository_id=self.repository.id, pull_request_id=pull_request_id)
+
+    def _build_commit(self):
+        """ Build the commit request body """
         old_branch_id = self.git_client.get_refs(self.repository.id, project=self.project, filter=f"heads/{self.base_branch}")[0].object_id
         formatted_changes = []
         for change in self.pending_changes:
@@ -116,7 +128,7 @@ class RepoClient:
             ],
             "commits": [
                 {
-                    "comment": self.change_title,
+                    "comment": self.commit_title,
                     "changes": formatted_changes
                 }
             ]

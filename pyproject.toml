@@ -1,0 +1,23 @@
+[build-system]
+requires = ["uv_build >= 0.9.28, <0.10.0"]
+build-backend = "uv_build"
+
+[project]
+name = "adoa_bjrd"
+version = "0.0.1"
+authors = [
+  { name="Jordan Hurley", email="jordanhurley@protonmail.com" },
+]
+description = "Some Azure DevOps Automation Tools"
+readme = "README.md"
+requires-python = ">=3.9"
+classifiers = [
+    "Programming Language :: Python :: 3",
+    "Operating System :: OS Independent",
+]
+license = "MIT"
+license-files = ["LICEN[CS]E*"]
+
+[project.urls]
+Homepage = "https://github.com/jordan-hurley-dev/adoa"
+Issues = "https://github.com/jordan-hurley-dev/adoa/issues"
